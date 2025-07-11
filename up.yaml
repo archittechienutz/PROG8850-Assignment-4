@@ -1,4 +1,5 @@
 ---
+# Ansible playbook to deploy MySQL and run Flyway migrations
 - name: Deploy MySQL and Run Flyway Migrations (CLI version)
   hosts: localhost
   connection: local
@@ -6,6 +7,7 @@
     ansible_python_interpreter: /usr/bin/python3
   tasks:
 
+    # Start MySQL container if not already running
     - name: Start MySQL container using Docker CLI
       shell: |
         docker ps -a | grep mysql-db && docker start mysql-db || docker run -d \
@@ -16,20 +18,39 @@
         -e MYSQL_PASSWORD=flywaypass \
         -p 3306:3306 \
         mysql:8.0
+      # This ensures MySQL is running in a Docker container named 'mysql-db'.
 
+    # Wait for MySQL to be ready to accept connections
     - name: Wait for MySQL to be ready
       wait_for:
         port: 3306
         host: "127.0.0.1"
         delay: 10
         timeout: 60
+      # This waits until the MySQL service is available on port 3306.
 
+    # Set flyway user to use mysql_native_password (fixes RSA public key error)
+    - name: Set flyway user to use mysql_native_password
+      shell: |
+        docker exec mysql-db \
+        mysql -uroot -prootpass -e "ALTER USER 'flyway'@'%' IDENTIFIED WITH mysql_native_password BY 'flywaypass'; FLUSH PRIVILEGES;"
+      register: set_native_password
+      until: set_native_password is succeeded
+      retries: 5
+      delay: 3
+      ignore_errors: yes
+      # This ensures the flyway user uses mysql_native_password for compatibility with Flyway and other clients.
+
+    # Run Flyway migrations to update the database schema
     - name: Run Flyway migrations
       shell: |
         docker run --rm \
+        --network container:mysql-db \
         -v {{ playbook_dir }}/sql:/flyway/sql \
         flyway/flyway \
-        -url=jdbc:mysql://172.17.0.1:3306/subscribers \
+        -url=jdbc:mysql://localhost:3306/subscribers \
         -user=flyway \
         -password=flywaypass \
         migrate
+      # This runs Flyway migrations using the migration scripts in the 'sql' directory.
+      # '--network container:mysql-db' allows Flyway to connect to MySQL via localhost inside the container network.

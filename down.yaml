@@ -1,4 +1,5 @@
 ---
+# Ansible playbook to dump subscriber data and stop MySQL container
 - name: Dump DB and stop MySQL container (CLI version)
   hosts: localhost
   connection: local
@@ -6,11 +7,15 @@
     ansible_python_interpreter: /usr/bin/python3
   tasks:
 
-    - name: Dump subscriber data (optional)
+    # Dump the current state of the 'subscribers' database to a SQL file
+    - name: Dump subscriber data (for seeding next run)
       shell: |
         docker exec mysql-db \
         mysqldump -uroot -prootpass subscribers > {{ playbook_dir }}/backup.sql
       ignore_errors: yes
+      # This exports the database so it can be used to seed data on the next run.
 
+    # Stop the MySQL Docker container
     - name: Stop MySQL container
       shell: docker stop mysql-db
+      # This stops the running MySQL container to clean up the environment.
