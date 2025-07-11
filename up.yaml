@@ -1,0 +1,35 @@
+---
+- name: Deploy MySQL and Run Flyway Migrations (CLI version)
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+
+    - name: Start MySQL container using Docker CLI
+      shell: |
+        docker ps -a | grep mysql-db && docker start mysql-db || docker run -d \
+        --name mysql-db \
+        -e MYSQL_ROOT_PASSWORD=rootpass \
+        -e MYSQL_DATABASE=subscribers \
+        -e MYSQL_USER=flyway \
+        -e MYSQL_PASSWORD=flywaypass \
+        -p 3306:3306 \
+        mysql:8.0
+
+    - name: Wait for MySQL to be ready
+      wait_for:
+        port: 3306
+        host: "127.0.0.1"
+        delay: 10
+        timeout: 60
+
+    - name: Run Flyway migrations
+      shell: |
+        docker run --rm \
+        -v {{ playbook_dir }}/sql:/flyway/sql \
+        flyway/flyway \
+        -url=jdbc:mysql://172.17.0.1:3306/subscribers \
+        -user=flyway \
+        -password=flywaypass \
+        migrate

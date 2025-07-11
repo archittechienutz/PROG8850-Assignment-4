@@ -1,0 +1,16 @@
+---
+- name: Dump DB and stop MySQL container (CLI version)
+  hosts: localhost
+  connection: local
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  tasks:
+
+    - name: Dump subscriber data (optional)
+      shell: |
+        docker exec mysql-db \
+        mysqldump -uroot -prootpass subscribers > {{ playbook_dir }}/backup.sql
+      ignore_errors: yes
+
+    - name: Stop MySQL container
+      shell: docker stop mysql-db
